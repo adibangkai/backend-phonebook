@@ -1,6 +1,8 @@
 const express = require("express")
 const morgan = require("morgan")
 const app = express()
+require("dotenv").config()
+const Contact = require("./models/contact")
 
 const cors = require("cors")
 
@@ -23,41 +25,16 @@ const requestLogger = (request, response, next) => {
   next()
 }
 
-const unknownEndpoint = (request, response) => {
-  response.status(404).send({ error: "unknown endpoint" })
-}
-
 app.use(requestLogger)
-
-let persons = [
-  {
-    name: "Mary Poppendieck",
-    number: "39-23-6423122",
-    id: 4
-  },
-  {
-    name: "eye",
-    number: "15",
-    id: 9
-  },
-  {
-    name: "geefe",
-    number: "314516",
-    id: 11
-  },
-  {
-    name: "yest",
-    number: "2412512",
-    id: 12
-  }
-]
 
 app.get("/", (request, response) => {
   response.send("<h1>Hello World!</h1>")
 })
 
 app.get("/api/persons", (request, response) => {
-  response.json(persons)
+  Contact.find({}).then(contacts => {
+    response.json(contacts.map(contact => contact.toJSON()))
+  })
 })
 
 app.get("/info", (request, response) => {
@@ -66,31 +43,26 @@ app.get("/info", (request, response) => {
     <p>${new Date().toString()}</p>`)
 })
 
-app.get("/api/persons/:id", (request, response) => {
-  const id = Number(request.params.id)
-  const person = persons.find(person => person.id === id)
-
-  if (person) {
-    response.json(person)
-  } else {
-    response.status(404).end()
-  }
+app.get("/api/persons/:id", (request, response, next) => {
+  Contact.findById(request.params.id)
+    .then(contact => {
+      if (contact) {
+        response.json(contact.toJSON())
+      } else {
+        response.status(404).end()
+      }
+    })
+    .catch(error => next(error))
 })
-app.delete("/api/persons/:id", (request, response) => {
-  const id = Number(request.params.id)
-  persons = persons.filter(person => person.id !== id)
-
-  response.status(204).end()
+app.delete("/api/persons/:id", (request, response, next) => {
+  Contact.findByIdAndRemove(request.params.id)
+    .then(result => {
+      response.status(204).end()
+    })
+    .catch(error => next(error))
 })
 
-const generateId = () => {
-  const max = persons.length > 0 ? Math.max(...persons.map(n => n.id)) : 0
-
-  const maxId = Math.floor(Math.random() * Math.floor(100))
-  return maxId
-}
-
-app.post("/api/persons", (request, response) => {
+app.post("/api/persons", (request, response, next) => {
   const body = request.body
 
   if (!body.name || !body.number) {
@@ -98,26 +70,54 @@ app.post("/api/persons", (request, response) => {
       error: "name/ is missing"
     })
   }
-  const duplicateName = persons.filter(person => person.name === body.name)
 
-  if (duplicateName.length) {
-    return response.status(400).json({
-      error: "name already exists"
-    })
-  }
-  const person = {
+  const contact = new Contact({
     name: body.name,
-    number: body.number,
-    id: generateId()
+    number: body.number
+  })
+
+  contact
+    .save()
+    .then(savedContact => {
+      response.json(savedContact)
+    })
+    .catch(error => next(error))
+})
+
+app.put("/api/persons/:id", (request, response, next) => {
+  const body = request.body
+
+  const contact = {
+    name: body.name,
+    number: body.number
   }
 
-  persons = persons.concat(person)
-
-  response.json(person)
+  Contact.findByIdAndUpdate(request.params.id, contact, { new: true })
+    .then(updatedContact => {
+      response.json(updatedContact.toJSON())
+    })
+    .catch(error => next(error))
 })
-app.use(unknownEndpoint)
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: "unknown endpoint" })
+}
 
-const PORT = process.env.PORT || 3001
+app.use(unknownEndpoint)
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === "CastError" && error.kind == "ObjectId") {
+    return response.status(400).send({ error: "malformatted id" })
+  } else if (error.name === "ValidationError") {
+    return response.status(400).json({ error: error.message })
+  }
+
+  next(error)
+}
+
+app.use(errorHandler)
+
+const PORT = process.env.PORT
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
