@@ -1,12 +1,12 @@
-const mongoose = require("mongoose")
+const mongoose = require('mongoose')
 
 if (process.argv.length < 3) {
-  console.log("Please provide the password as an argument: node mongo.js <password>")
+  console.log('Please provide the password as an argument: node mongo.js <password>')
   process.exit(1)
 }
 
 if (process.argv.length === 4) {
-  console.log("phone number is missing")
+  console.log('phone number is missing')
   process.exit(1)
 }
 const password = process.argv[2]
@@ -20,7 +20,7 @@ const contactSchema = new mongoose.Schema({
   number: Number
 })
 
-const Contact = mongoose.model("Contact", contactSchema)
+const Contact = mongoose.model('Contact', contactSchema)
 
 if (process.argv.length === 3) {
   Contact.find({}).then(result => {
@@ -40,7 +40,7 @@ if (process.argv.length === 5) {
   })
 
   contact.save().then(result => {
-    console.log("contact saved!")
+    console.log('contact saved!')
     mongoose.connection.close()
   })
 }
